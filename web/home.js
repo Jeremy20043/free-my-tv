@@ -721,7 +721,8 @@
     var d = $('drawer');
     var old = d.querySelectorAll('.panel');
     for (var o = 0; o < old.length; o++) d.removeChild(old[o]);
-    var wx = Prefs.weather(), coins = Data.activeCoins(), qt = coins.length > 0;
+    var wx = Prefs.weather(), coins = Data.activeCoins(), br = Data.bridge;
+    var bq = !!(br && ((br.quotes && br.quotes.length) || (br.ha && br.ha.length))), qt = coins.length > 0 || bq;
     var split = 80 + 1760 * 0.585;
     if (wx) {
       var w = el('div', 'panel glass', d);
@@ -736,7 +737,7 @@
       var left = wx ? split + 16 : 80;
       startAt(q, left);
       q.style.width = (1840 - left) + 'px';
-      renderPrices(q, coins);
+      if (bq) renderBridge(q, br); else renderPrices(q, coins);
     }
   }
 
@@ -823,6 +824,37 @@
       el('span', 'p', row, Data.money(Data.prices[i]));
       var ch = Data.changes[i];
       if (!isNaN(ch)) el('span', 'c ' + (ch >= 0 ? 'up' : 'down'), row, Data.change(ch));
+    }
+  }
+
+  /** Own build: the ETF and Home Assistant card, from the helper on the home network (Data.bridge). */
+  function renderBridge(card, br) {
+    el('div', 'head', card, 'Depot & Zuhause');
+    var stale = Data.staleness(Data.bridgeAt, 60000);
+    el('div', 'side', card, stale ? trf('quotes|{ago}', {ago: stale}) : 'Heute');
+    var rows = [], i;
+    for (i = 0; br.quotes && i < br.quotes.length; i++) {
+      var q = br.quotes[i];
+      rows.push({sym: 'sparkles', n: q.name, p: typeof q.price === 'number' ? Data.money(q.price) : '—',
+        c: typeof q.change === 'number' ? q.change : NaN});
+    }
+    for (i = 0; br.ha && i < br.ha.length; i++) {
+      var h = br.ha[i], v = h.state, num = parseFloat(v);
+      if (v === null || v === undefined || v === 'unavailable' || v === 'unknown') v = '—';
+      else if (!isNaN(num) && /^-?[\d.]+$/.test(v)) v = Data.compact(num) + (h.unit ? ' ' + h.unit : '');
+      else if (v === 'on') v = 'An';
+      else if (v === 'off') v = 'Aus';
+      var icon = /water|wasser|moisture/i.test(h.id + ' ' + h['class']) ? 'rainy'
+        : /^light\./.test(h.id) ? 'lightbulb' : /^switch\./.test(h.id) ? 'toggle' : /^fan\./.test(h.id) ? 'fan' : 'home';
+      rows.push({sym: icon, n: h.name, p: v, c: NaN});
+    }
+    for (var j = 0; j < rows.length && j < 4; j++) {
+      var r = rows[j], row = el('div', 'coin br', card);
+      row.style.top = (86 + 52 * j) + 'px';
+      sym(r.sym, row);
+      el('span', 'n', row, r.n);
+      el('span', 'p', row, r.p);
+      if (!isNaN(r.c)) el('span', 'c ' + (r.c >= 0 ? 'up' : 'down'), row, Data.change(r.c));
     }
   }
 

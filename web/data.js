@@ -441,6 +441,25 @@ var Data = (function () {
     })(0);
   }
 
+  // MARK: - Bridge (own build): ETF quotes and Home Assistant states from a helper on the home network (bridge_url).
+  // The Home Assistant token stays on that helper; the TV only reads GET <bridge_url>/state.
+
+  var BRIDGE = String(CONFIG.bridgeUrl || '').replace(/\/+$/, '');
+  var bridge = BRIDGE ? stored('bridge') : null, bridgeAt = 0, fetchingBridge = false;
+
+  function refreshBridge() {
+    if (!BRIDGE || fetchingBridge || Date.now() - bridgeAt < 25000) return;
+    fetchingBridge = true;
+    get(BRIDGE + '/state', {}, function (err, body) {
+      fetchingBridge = false;
+      if (err || !body) return;
+      bridge = body;
+      bridgeAt = Date.now();
+      store('bridge', bridge);
+      changed();
+    });
+  }
+
   // MARK: - Picks (TMDB)
 
   var KEY = Prefs.tmdbKey();
@@ -838,7 +857,9 @@ var Data = (function () {
     titleLink: titleLink,
     usable: usable,
     services: services,
-    refresh: function () { refreshWeather(); refreshAir(); refreshPrices(); refreshRecs(); },
+    refresh: function () { refreshWeather(); refreshAir(); refreshPrices(); refreshBridge(); refreshRecs(); },
+    get bridge() { return bridge; },
+    get bridgeAt() { return bridgeAt || (bridge && bridge.at) || 0; },
     settingsChanged: function () { pricesAt = 0; refreshPrices(); changed(); },
     findCity: findCity,
     /** Another city picked: its weather now (none shown until it comes). */

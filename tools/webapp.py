@@ -15,7 +15,7 @@ import translate  # noqa: E402  (the catalogues and the keys the web app uses)
 
 GENERIC = {'tmdbKey': '', 'tmdbRegion': '', 'latitude': '', 'longitude': '', 'city': '', 'language': 'auto',
            'currency': '', 'temperature': 'auto', 'theme': 'auto', 'showCrypto': True, 'hideAnimation': False, 'hideApps': [],
-           'shelfApps': [], 'drawerFirst': False, 'openPicksIn': 'apps', 'clockFormat': 'auto'}
+           'shelfApps': [], 'drawerFirst': False, 'openPicksIn': 'apps', 'clockFormat': 'auto', 'bridgeUrl': ''}
 
 
 def config_from_args(args):
@@ -73,6 +73,8 @@ def read_config(path):
         # Samsung: Home pressed in an app opened from here brings Free My TV back. It changes the package's manifest
         # (tizen/build.py), so only a build that asks for it carries it; the release doesn't.
         'homeButton': values.get('samsung_home_button', 'false').lower() == 'true',
+        # Own build: a helper on the home network (fmtv-bridge) with ETF quotes and Home Assistant states.
+        'bridgeUrl': values.get('bridge_url', '').strip(),
         'openPicksIn': 'nuvio' if values.get('open_picks_in', '').strip().lower() == 'nuvio' else 'apps',
         # 24 or 12 forces the clock; auto follows the language's catalogue.
         'clockFormat': values.get('clock_format', '').strip() if values.get('clock_format', '').strip() in ('24', '12') else 'auto',

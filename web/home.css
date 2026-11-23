@@ -470,6 +470,10 @@ button { font: inherit; color: inherit; background: none; border: 0; padding: 0;
 #prices .up { color: #248A3D; background: rgba(36, 138, 61, 0.2); }
 #prices .down { color: #D70015; background: rgba(215, 0, 21, 0.2); }
 .night #prices .coin svg { fill: rgba(255, 255, 255, 0.8); }
+#prices .coin .sym { position: absolute; left: 0; top: 5px; width: 30px; height: 30px; background: #6E6E73; }
+.night #prices .coin .sym { background: rgba(255, 255, 255, 0.8); }
+#prices .br .n { right: 250px; overflow: hidden; text-overflow: ellipsis; }
+#prices .br .p { right: 128px; }
 .night #prices .up { color: #30D158; background: rgba(48, 209, 88, 0.2); }
 .night #prices .down { color: #FF453A; background: rgba(255, 69, 58, 0.2); }
 
