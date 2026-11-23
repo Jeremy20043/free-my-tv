@@ -601,6 +601,65 @@
     }, BG_FOLLOW_MS);
   }
 
+  // MARK: - Own build: Immich photos as the background, a Home Assistant camera on the home screen (fmtv-bridge)
+
+  var photoOn = false, photoUrl = '', photoFront = 'photoA', PHOTO_MS = 15 * 60000;
+
+  /** The Immich album's photos, as addresses on the helper. */
+  function ownPhotos() {
+    var br = Data.bridge, out = [];
+    for (var i = 0; br && br.photos && i < br.photos.length; i++) out.push(Data.bridgeUrl(br.photos[i]));
+    return out;
+  }
+
+  /** Without picks, one of the album's photos is the background, another every 15 minutes. */
+  function renderPhoto() {
+    var list = ownPhotos(), want = list.length && !cards.length ? list[Math.floor(Date.now() / PHOTO_MS) % list.length] : '';
+    if (want === photoUrl) return;
+    photoUrl = want;
+    if (!want) {
+      setClass($('photoA'), 'on', false);
+      setClass($('photoB'), 'on', false);
+      if (photoOn) { photoOn = false; checkNight(); }
+      return;
+    }
+    var img = new Image();
+    img.onload = function () {
+      if (photoUrl !== want) return;
+      var next = photoFront === 'photoA' ? 'photoB' : 'photoA';
+      $(next).style.backgroundImage = 'url(' + want + ')';
+      setClass($(next), 'on', true);
+      setClass($(photoFront), 'on', false);
+      photoFront = next;
+      if (!photoOn) { photoOn = true; checkNight(); }
+    };
+    img.src = want;
+  }
+
+  var camIndex = 0, camSince = 0, camLoading = false;
+
+  /** About once a second, the next picture of the camera on screen; every few seconds the next camera. */
+  function tickCamera() {
+    var br = Data.bridge, cams = br && br.cameras ? br.cameras : [], box = $('cam');
+    var show = cams.length > 0 && !cards.length && !resting() && !document.hidden && st.zone !== Z.DRAWER && !sheetOpen();
+    setClass(box, 'hide', !show);
+    if (!show || camLoading) return;
+    var now = Date.now(), every = (br.cameraSeconds || 10) * 1000;
+    if (!camSince) camSince = now;
+    if (cams.length > 1 && now - camSince >= every) { camIndex++; camSince = now; }
+    var cam = cams[camIndex % cams.length], img = new Image();
+    camLoading = true;
+    img.onload = function () {
+      camLoading = false;
+      box.querySelector('img').src = img.src;
+      box.querySelector('.name').textContent = cam.name;
+    };
+    img.onerror = function () { camLoading = false; };
+    img.src = Data.bridgeUrl(cam.url) + '?t=' + now;
+  }
+  setInterval(tickCamera, 1000);
+  setInterval(renderPhoto, 60000);
+
   function renderClock() {
     var d = new Date(), c = $('clock');
     c.firstChild.textContent = formatDate('format|h:mm', d.getTime());
@@ -1760,7 +1819,7 @@
   var lastNight = null;
 
   function checkNight() {
-    var night = Data.isNight(Date.now());
+    var night = Data.isNight(Date.now()) || photoOn;
     setClass(body, 'night', night);
     if (night === lastNight) return;
     lastNight = night;
@@ -1794,6 +1853,8 @@
 
   /** The screensaver's photos: picks with an app on the TV. */
   function saverPhotos() {
+    var own = ownPhotos();
+    if (own.length) return own.map(function (u) { return {photo: u, title: ''}; });
     return Data.showcase().filter(function (p) { return p.backdrop && Data.usable(p.app); });
   }
 
@@ -1816,12 +1877,12 @@
       var p = photos.length ? photos[saverIndex++ % photos.length] : null;
       var back = front === a ? b : a;
       if (p) {
-        back.style.backgroundImage = 'url(' + Data.image(p.backdrop, 'original') + ')';
+        back.style.backgroundImage = 'url(' + (p.photo || Data.image(p.backdrop, 'original')) + ')';
         back.style.webkitTransform = back.style.transform = 'scale(1.0)';
         clock.children[2].textContent = I18N.name(p.title);
         saverPick = p;
         // With Watch from the screensaver on, OK opens this title's app (any other key only closes).
-        var target = Prefs.saverWatch() ? pickTarget(p) : null;
+        var target = Prefs.saverWatch() && !p.photo ? pickTarget(p) : null;
         hint.textContent = target ? trf('Press OK to watch on {app} · any other button to close', {app: I18N.name(target.app.title)}) : '';
         setTimeout(function () {
           setClass(back, 'on', true);
@@ -1981,6 +2042,7 @@
   Data.onChange(function () {
     renderQuotes();
     renderCards();
+    renderPhoto();
     renderPanels();
     checkNight();
   });

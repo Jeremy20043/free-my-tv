@@ -859,6 +859,8 @@ var Data = (function () {
     services: services,
     refresh: function () { refreshWeather(); refreshAir(); refreshPrices(); refreshBridge(); refreshRecs(); },
     get bridge() { return bridge; },
+    /** An address the helper gave ("/camera/0.jpg"), on the helper. */
+    bridgeUrl: function (path) { return BRIDGE + path; },
     get bridgeAt() { return bridgeAt || (bridge && bridge.at) || 0; },
     settingsChanged: function () { pricesAt = 0; refreshPrices(); changed(); },
     findCity: findCity,
