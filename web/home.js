@@ -841,10 +841,10 @@
     for (i = 0; br.ha && i < br.ha.length; i++) {
       var h = br.ha[i], v = h.state, num = parseFloat(v);
       if (v === null || v === undefined || v === 'unavailable' || v === 'unknown') v = '—';
-      else if (!isNaN(num) && /^-?[\d.]+$/.test(v)) v = Data.compact(num) + (h.unit ? ' ' + h.unit : '');
+      else if (!isNaN(num) && /^-?[\d.]+$/.test(v)) v = String(Math.round(num * 10) / 10).replace('.', ',') + (h.unit ? ' ' + h.unit : '');
       else if (v === 'on') v = 'An';
       else if (v === 'off') v = 'Aus';
-      var icon = /water|wasser|moisture/i.test(h.id + ' ' + h['class']) ? 'rainy'
+      var icon = /tank|wasser|water/i.test(h.id + ' ' + h.name) ? 'tank' : /moisture|humidity/i.test(h['class']) ? 'rainy'
         : /^light\./.test(h.id) ? 'lightbulb' : /^switch\./.test(h.id) ? 'toggle' : /^fan\./.test(h.id) ? 'fan' : 'home';
       rows.push({sym: icon, n: h.name, p: v, c: NaN});
     }
