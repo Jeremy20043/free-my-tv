@@ -636,7 +636,7 @@
     img.src = want;
   }
 
-  var camIndex = 0, camSince = 0, camLoading = false, streamFor = -1, streamAt = 0, camLive = false, camFailed = {};
+  var camIndex = 0, camSince = 0, camLoading = false, streamFor = -1, streamAt = 0, camLive = false, camFailed = {}, hls = null;
 
   /** The video stops (and the TV stops decoding it) when the camera isn't on screen. */
   function stopStream() {
@@ -645,6 +645,7 @@
     streamFor = -1;
     camLive = false;
     setClass($('cam'), 'live', false);
+    if (hls) { try { hls.destroy(); } catch (e) {} hls = null; }
     try { v.pause(); } catch (e) {}
     v.removeAttribute('src');
     try { v.load(); } catch (e) {}
@@ -665,8 +666,21 @@
       if (!url) { camFailed[i] = true; return; }
       var v = $('cam').querySelector('video');
       v.muted = true;
-      v.src = url;
-      try { var pr = v.play(); if (pr && pr['catch']) pr['catch'](function () {}); } catch (e) {}
+      url = Data.bridgeUrl(url);
+      function play() { try { var pr = v.play(); if (pr && pr['catch']) pr['catch'](function () {}); } catch (e) {} }
+      // Home Assistant's low-latency HLS (fMP4): hls.js through the TV's media source; the TV's own player otherwise.
+      if (window.Hls && window.Hls.isSupported()) {
+        hls = new window.Hls({lowLatencyMode: true, backBufferLength: 10, maxBufferLength: 8});
+        hls.on(window.Hls.Events.MANIFEST_PARSED, play);
+        hls.on(window.Hls.Events.ERROR, function (ev, data) {
+          if (data && data.fatal && streamFor === i) { camFailed[i] = true; stopStream(); }
+        });
+        hls.loadSource(url);
+        hls.attachMedia(v);
+      } else {
+        v.src = url;
+        play();
+      }
     };
     x.send();
   }
@@ -689,7 +703,12 @@
     if (camLive || camLoading) return;
     var img = new Image();
     camLoading = true;
-    img.onload = function () { camLoading = false; box.querySelector('img').src = img.src; };
+    img.onload = function () {
+      camLoading = false;
+      if (camLive) return;
+      var old = box.querySelector('img');
+      box.replaceChild(img, old);   // the picture just loaded, not a second request for it (2 s on these cameras)
+    };
     img.onerror = function () { camLoading = false; };
     img.src = Data.bridgeUrl(cam.url) + '?t=' + now;
   }
