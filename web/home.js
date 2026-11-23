@@ -636,27 +636,68 @@
     img.src = want;
   }
 
-  var camIndex = 0, camSince = 0, camLoading = false;
+  var camIndex = 0, camSince = 0, camLoading = false, streamFor = -1, streamAt = 0, camLive = false, camFailed = {};
 
-  /** About once a second, the next picture of the camera on screen; every few seconds the next camera. */
+  /** The video stops (and the TV stops decoding it) when the camera isn't on screen. */
+  function stopStream() {
+    var v = $('cam').querySelector('video');
+    if (streamFor < 0 && !v.getAttribute('src')) return;
+    streamFor = -1;
+    camLive = false;
+    setClass($('cam'), 'live', false);
+    try { v.pause(); } catch (e) {}
+    v.removeAttribute('src');
+    try { v.load(); } catch (e) {}
+  }
+
+  /** The camera's live video (HLS from Home Assistant, through the helper); its pictures until it plays. */
+  function startStream(i, cam) {
+    stopStream();
+    streamFor = i;
+    streamAt = Date.now();
+    var x = new XMLHttpRequest();
+    x.open('GET', Data.bridgeUrl(cam.stream), true);
+    x.timeout = 20000;
+    x.onreadystatechange = function () {
+      if (x.readyState !== 4 || streamFor !== i) return;
+      var url = '';
+      try { url = JSON.parse(x.responseText).url; } catch (e) {}
+      if (!url) { camFailed[i] = true; return; }
+      var v = $('cam').querySelector('video');
+      v.muted = true;
+      v.src = url;
+      try { var pr = v.play(); if (pr && pr['catch']) pr['catch'](function () {}); } catch (e) {}
+    };
+    x.send();
+  }
+
+  /** Every second: the live video when it plays, else a fresh picture; every 30 s (camera_seconds) the next camera. */
   function tickCamera() {
     var br = Data.bridge, cams = br && br.cameras ? br.cameras : [], box = $('cam');
     var show = cams.length > 0 && !cards.length && !resting() && !document.hidden && st.zone !== Z.DRAWER && !sheetOpen();
     setClass(box, 'hide', !show);
-    if (!show || camLoading) return;
-    var now = Date.now(), every = (br.cameraSeconds || 10) * 1000;
+    if (!show) { stopStream(); return; }
+    var now = Date.now(), every = (br.cameraSeconds || 30) * 1000;
     if (!camSince) camSince = now;
     if (cams.length > 1 && now - camSince >= every) { camIndex++; camSince = now; }
-    var cam = cams[camIndex % cams.length], img = new Image();
+    var i = camIndex % cams.length, cam = cams[i];
+    box.querySelector('.name').textContent = cam.name;
+    if (cam.stream && !camFailed[i]) {
+      if (streamFor !== i) startStream(i, cam);
+      else if (!camLive && now - streamAt > 15000) { camFailed[i] = true; stopStream(); }   // no picture in 15 s: pictures
+    } else if (streamFor >= 0) stopStream();
+    if (camLive || camLoading) return;
+    var img = new Image();
     camLoading = true;
-    img.onload = function () {
-      camLoading = false;
-      box.querySelector('img').src = img.src;
-      box.querySelector('.name').textContent = cam.name;
-    };
+    img.onload = function () { camLoading = false; box.querySelector('img').src = img.src; };
     img.onerror = function () { camLoading = false; };
     img.src = Data.bridgeUrl(cam.url) + '?t=' + now;
   }
+  (function () {
+    var v = $('cam').querySelector('video');
+    v.addEventListener('playing', function () { if (streamFor >= 0) { camLive = true; setClass($('cam'), 'live', true); } });
+    v.addEventListener('error', function () { if (streamFor >= 0) { camFailed[streamFor] = true; stopStream(); } });
+  })();
   setInterval(tickCamera, 1000);
   setInterval(renderPhoto, 60000);
 
